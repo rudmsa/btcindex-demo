@@ -41,7 +41,6 @@ func (appl *Application) Run(ctx context.Context) error {
 	defer cancelFn()
 
 	errCh := make(chan error, len(appl.runnables))
-	defer close(errCh)
 
 	wg := sync.WaitGroup{}
 	wg.Add(len(appl.runnables))

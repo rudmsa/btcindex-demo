@@ -7,16 +7,38 @@ import (
 
 	"github.com/shopspring/decimal"
 
+	"github.com/rudmsa/btcindex-demo/internal/aggregator"
+	"github.com/rudmsa/btcindex-demo/internal/core"
+	"github.com/rudmsa/btcindex-demo/internal/exchange"
 	"github.com/rudmsa/btcindex-demo/internal/pricestreamer"
 )
 
 func main() {
-	test := pricestreamer.NewDummyStream(decimal.NewFromFloat(35000.0), decimal.NewFromFloat(48000.0), 10*time.Millisecond)
+	exchangeNames := []string{"finhome-777", "coinhub-100", "cryptmaster-AAA", "futurebase-XXX", "cryptohub->>>"}
+
+	testStreams := []pricestreamer.PriceStreamSubscriber{
+		pricestreamer.NewDummyStream(decimal.NewFromFloat(35000), decimal.NewFromFloat(48000), 100*time.Millisecond),
+		pricestreamer.NewDummyStream(decimal.NewFromFloat(45000), decimal.NewFromFloat(47000), 500*time.Millisecond),
+		pricestreamer.NewDummyStream(decimal.NewFromFloat(45500), decimal.NewFromFloat(45600), 150*time.Millisecond),
+		pricestreamer.NewDummyStream(decimal.NewFromFloat(45500), decimal.NewFromFloat(45600), 600*time.Millisecond),
+	}
+
+	btcAggregator := aggregator.NewAggregator(exchange.BTCUSDTicker)
+	for i := range testStreams {
+		btcAggregator.RegisterPriceStreamer(exchangeNames[i], testStreams[i])
+	}
+
+	var appl *core.Application = core.NewApplication()
+	appl.Register(btcAggregator)
+
 	ctx, cancelFn := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancelFn()
 
-	ch, _ := test.SubscribePriceStream(ctx, "Test")
-	for data := range ch {
-		fmt.Println(data)
-	}
+	go func() {
+		for data := range btcAggregator.GetAggregatedOutput() {
+			fmt.Println(data)
+		}
+	}()
+
+	appl.Run(ctx)
 }
