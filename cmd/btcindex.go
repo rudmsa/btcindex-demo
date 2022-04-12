@@ -9,6 +9,8 @@ import (
 
 	"github.com/rudmsa/btcindex-demo/internal/aggregator"
 	"github.com/rudmsa/btcindex-demo/internal/core"
+	"github.com/rudmsa/btcindex-demo/internal/indexer"
+	"github.com/rudmsa/btcindex-demo/internal/indexer/algorithm"
 	"github.com/rudmsa/btcindex-demo/internal/pricestreamer"
 )
 
@@ -27,15 +29,19 @@ func main() {
 		btcAggregator.RegisterPriceStreamer(exchangeNames[i], testStreams[i])
 	}
 
+	index := indexer.NewPriceIndexer(&algorithm.StreamingMean{}, 5*time.Second, btcAggregator.GetAggregatedOutput())
+
 	var appl *core.Application = core.NewApplication()
 	appl.Register(btcAggregator)
+	appl.Register(index)
 
-	ctx, cancelFn := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancelFn := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancelFn()
 
 	go func() {
-		for data := range btcAggregator.GetAggregatedOutput() {
-			fmt.Println(data)
+		fmt.Println("Timestamp, IndexPrice")
+		for data := range index.GetIndexOutput() {
+			fmt.Printf("%d, %s\n", data.Stamp, data.Value.StringFixed(3))
 		}
 	}()
 

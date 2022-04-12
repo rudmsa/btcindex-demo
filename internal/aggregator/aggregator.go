@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/rudmsa/btcindex-demo/internal/model"
 	"github.com/rudmsa/btcindex-demo/internal/pricestreamer"
 )
 
@@ -18,17 +19,17 @@ type TickerAggregator struct {
 	providers []*priceProvider
 	muProvs   sync.Mutex
 
-	output chan Quote
+	output chan model.Quote
 }
 
 func NewAggregator(ticker pricestreamer.Ticker) *TickerAggregator {
 	return &TickerAggregator{
 		ticker: ticker,
-		output: make(chan Quote, OutputDefaultBuffer),
+		output: make(chan model.Quote, OutputDefaultBuffer),
 	}
 }
 
-func (aggr *TickerAggregator) GetAggregatedOutput() <-chan Quote {
+func (aggr *TickerAggregator) GetAggregatedOutput() <-chan model.Quote {
 	return aggr.output
 }
 
@@ -78,12 +79,14 @@ func (aggr *TickerAggregator) startProvider(ctx context.Context, wg *sync.WaitGr
 
 			case data, ok := <-prov.dataCh:
 				if !ok {
+					// provider error channel should provide reason
 					prov.dataCh = nil
 					break
 				}
-				quote, err := TickerPriceToQuote(prov.source, data)
+				quote, err := model.TickerPriceToQuote(prov.source, data)
 				if err != nil {
 					// #TODO: report this error
+					break
 				}
 
 				select {
@@ -96,7 +99,6 @@ func (aggr *TickerAggregator) startProvider(ctx context.Context, wg *sync.WaitGr
 				// #TODO: we got error data - report it
 				break mainloop
 			}
-
 		}
 	}()
 	return nil
