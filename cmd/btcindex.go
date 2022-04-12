@@ -14,6 +14,7 @@ import (
 	"github.com/rudmsa/btcindex-demo/internal/pricestreamer"
 )
 
+// nolint
 func main() {
 	exchangeNames := []string{"finhome-777", "coinhub-100", "cryptmaster-AAA", "futurebase-XXX", "cryptohub->>>"}
 

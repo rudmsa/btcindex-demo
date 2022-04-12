@@ -20,6 +20,11 @@ const (
 	StateStopping = 3
 )
 
+var (
+	ErrIsAlreadyStarted = errors.New("is already started")
+	ErrIsNotRunning     = errors.New("is not running")
+)
+
 type priceProvider struct {
 	source   string
 	streamer pricestreamer.PriceStreamSubscriber
@@ -75,7 +80,7 @@ func (aggr *TickerAggregator) RegisterPriceStreamer(source string, priceStreamer
 
 func (aggr *TickerAggregator) Stop() error {
 	if !atomic.CompareAndSwapInt32(&aggr.state, StateRunning, StateStopping) {
-		return errors.New("TickerAggregator is not running")
+		return ErrIsNotRunning
 	}
 	aggr.cancelFn()
 	aggr.wg.Wait()
@@ -85,7 +90,7 @@ func (aggr *TickerAggregator) Stop() error {
 
 func (aggr *TickerAggregator) Run(ctx context.Context) error {
 	if !atomic.CompareAndSwapInt32(&aggr.state, StateStopped, StateStarting) {
-		return errors.New("TickerAggregator is already started")
+		return ErrIsAlreadyStarted
 	}
 	aggr.ctx, aggr.cancelFn = context.WithCancel(ctx)
 

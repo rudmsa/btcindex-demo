@@ -13,7 +13,7 @@ const (
 )
 
 // Generates random TickerPrice according to specified low/high range with interval period
-type dummyStream struct {
+type DummyStream struct {
 	tickerName Ticker
 	low, high  decimal.Decimal
 	interval   time.Duration
@@ -21,15 +21,15 @@ type dummyStream struct {
 	timeTicker *time.Ticker
 }
 
-func NewDummyStream(l, h decimal.Decimal, in time.Duration) PriceStreamSubscriber {
-	return &dummyStream{
+func NewDummyStream(l, h decimal.Decimal, in time.Duration) *DummyStream {
+	return &DummyStream{
 		low:      l,
 		high:     h,
 		interval: in,
 	}
 }
 
-func (ds *dummyStream) SubscribePriceStream(ctx context.Context, tick Ticker) (chan TickerPrice, chan error) {
+func (ds *DummyStream) SubscribePriceStream(ctx context.Context, tick Ticker) (chan TickerPrice, chan error) {
 	priceCh := make(chan TickerPrice, DummyStreamDefaultBuffer)
 	errCh := make(chan error, 1)
 
@@ -60,7 +60,8 @@ func (ds *dummyStream) SubscribePriceStream(ctx context.Context, tick Ticker) (c
 	return priceCh, errCh
 }
 
-func (ds *dummyStream) generatePrice() TickerPrice {
+// nolint:gosec // no security concern - just test data
+func (ds *DummyStream) generatePrice() TickerPrice {
 	randomVal := decimal.NewFromFloat(rand.Float64())
 	priceRange := ds.high.Sub(ds.low)
 	price := decimal.Sum(randomVal.Mul(priceRange), ds.low)
