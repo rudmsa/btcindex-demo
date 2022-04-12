@@ -2,7 +2,6 @@ package aggregator
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
@@ -13,10 +12,6 @@ const (
 	OutputDefaultBuffer = 100
 )
 
-var (
-	ErrAlreadyStarted = errors.New("cannot be done when already started")
-)
-
 type TickerAggregator struct {
 	ticker pricestreamer.Ticker
 
@@ -24,8 +19,6 @@ type TickerAggregator struct {
 	muProvs   sync.Mutex
 
 	output chan Quote
-
-	isStarted bool
 }
 
 func NewAggregator(ticker pricestreamer.Ticker) *TickerAggregator {
@@ -39,11 +32,7 @@ func (aggr *TickerAggregator) GetAggregatedOutput() <-chan Quote {
 	return aggr.output
 }
 
-func (aggr *TickerAggregator) RegisterPriceStreamer(source string, priceStreamer pricestreamer.PriceStreamSubscriber) error {
-	if aggr.isStarted {
-		return ErrAlreadyStarted
-	}
-
+func (aggr *TickerAggregator) RegisterPriceStreamer(source string, priceStreamer pricestreamer.PriceStreamSubscriber) {
 	prov := priceProvider{
 		source:   source,
 		streamer: priceStreamer,
@@ -51,15 +40,9 @@ func (aggr *TickerAggregator) RegisterPriceStreamer(source string, priceStreamer
 	aggr.muProvs.Lock()
 	aggr.providers = append(aggr.providers, &prov)
 	aggr.muProvs.Unlock()
-
-	return nil
 }
 
 func (aggr *TickerAggregator) Run(ctx context.Context) error {
-	if aggr.isStarted {
-		return ErrAlreadyStarted
-	}
-
 	ctx, cancelFn := context.WithCancel(ctx)
 	defer cancelFn()
 
@@ -71,7 +54,6 @@ func (aggr *TickerAggregator) Run(ctx context.Context) error {
 			return fmt.Errorf("failed to start provider [%s]: %w", prov.source, err)
 		}
 	}
-	aggr.isStarted = true
 
 	wg.Wait()
 	return nil

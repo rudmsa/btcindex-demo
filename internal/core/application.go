@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -19,7 +20,7 @@ var (
 type Application struct {
 	runnables   []Runnable
 	muRunnables sync.Mutex
-	isStarted   bool
+	isStarted   int32
 }
 
 func NewApplication() *Application {
@@ -33,9 +34,10 @@ func (appl *Application) Register(r Runnable) {
 }
 
 func (appl *Application) Run(ctx context.Context) error {
-	if appl.isStarted {
+	if !atomic.CompareAndSwapInt32(&appl.isStarted, 0, 1) {
 		return ErrIsAlreadyStarted
 	}
+	defer atomic.StoreInt32(&appl.isStarted, 0)
 
 	ctx, cancelFn := context.WithCancel(ctx)
 	defer cancelFn()
@@ -59,7 +61,6 @@ func (appl *Application) Run(ctx context.Context) error {
 	case <-time.After(100 * time.Millisecond):
 	}
 
-	appl.isStarted = true
 	wg.Wait()
 
 	return nil
