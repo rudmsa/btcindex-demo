@@ -39,11 +39,11 @@ func main() {
 	defer cancelFn()
 
 	go func() {
-		fmt.Println("Timestamp, IndexPrice")
-		for data := range index.GetIndexOutput() {
-			fmt.Printf("%d, %s\n", data.Stamp, data.Value.StringFixed(3))
-		}
+		appl.Run(ctx)
 	}()
 
-	appl.Run(ctx)
+	fmt.Println("Timestamp, IndexPrice")
+	for priceBar := range index.GetIndexOutput() {
+		fmt.Printf("%d, %s\n", priceBar.Stamp, priceBar.Value.StringFixed(3))
+	}
 }

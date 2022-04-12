@@ -11,7 +11,7 @@ import (
 type Indexer struct {
 	interval time.Duration
 	formula  algorithm.Formula
-	in       <-chan model.Quote
+	input    <-chan model.Quote
 	out      chan PriceBar
 }
 
@@ -19,7 +19,7 @@ func NewPriceIndexer(formula algorithm.Formula, interval time.Duration, input <-
 	return &Indexer{
 		interval: interval,
 		formula:  formula,
-		in:       input,
+		input:    input,
 		out:      make(chan PriceBar),
 	}
 }
@@ -32,12 +32,13 @@ func (ind *Indexer) Run(ctx context.Context) error {
 	ctx, cancelFn := context.WithCancel(ctx)
 	defer cancelFn()
 
-	ind.startIndexer(ctx)
+	ind.mainLoop(ctx)
+	close(ind.out)
 
 	return nil
 }
 
-func (ind *Indexer) startIndexer(ctx context.Context) {
+func (ind *Indexer) mainLoop(ctx context.Context) {
 	ticker := time.NewTicker(nextTick(ind.interval))
 	defer ticker.Stop()
 
@@ -61,10 +62,9 @@ func (ind *Indexer) startIndexer(ctx context.Context) {
 				// #FIXME report channel is full
 			}
 
-		case quote, ok := <-ind.in:
+		case quote, ok := <-ind.input:
 			if !ok {
 				// #FIXME report input channel closing
-				close(ind.out)
 				return
 			}
 			ind.formula.AddValue(quote.Price)
