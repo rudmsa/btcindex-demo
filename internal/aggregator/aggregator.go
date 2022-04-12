@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/rudmsa/btcindex-demo/internal/exchange"
 	"github.com/rudmsa/btcindex-demo/internal/pricestreamer"
 )
 
@@ -19,7 +18,7 @@ var (
 )
 
 type TickerAggregator struct {
-	ticker exchange.Ticker
+	ticker pricestreamer.Ticker
 
 	providers []*priceProvider
 	muProvs   sync.Mutex
@@ -29,7 +28,7 @@ type TickerAggregator struct {
 	isStarted bool
 }
 
-func NewAggregator(ticker exchange.Ticker) *TickerAggregator {
+func NewAggregator(ticker pricestreamer.Ticker) *TickerAggregator {
 	return &TickerAggregator{
 		ticker: ticker,
 		output: make(chan Quote, OutputDefaultBuffer),

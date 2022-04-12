@@ -6,17 +6,17 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"github.com/rudmsa/btcindex-demo/internal/exchange"
+	"github.com/rudmsa/btcindex-demo/internal/pricestreamer"
 )
 
 type Quote struct {
-	Ticker exchange.Ticker
+	Ticker pricestreamer.Ticker
 	Source string
 	Stamp  time.Time
 	Price  decimal.Decimal
 }
 
-func TickerPriceToQuote(source string, tp exchange.TickerPrice) (Quote, error) {
+func TickerPriceToQuote(source string, tp pricestreamer.TickerPrice) (Quote, error) {
 	price, err := decimal.NewFromString(tp.Price)
 	if err != nil {
 		return Quote{}, fmt.Errorf("failed to convert price [%s]: %w", tp.Price, err)

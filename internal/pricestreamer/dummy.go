@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"github.com/shopspring/decimal"
-
-	"github.com/rudmsa/btcindex-demo/internal/exchange"
 )
 
 const (
@@ -16,7 +14,7 @@ const (
 
 // Generates random TickerPrice according to specified low/high range with interval period
 type dummyStream struct {
-	tickerName exchange.Ticker
+	tickerName Ticker
 	low, high  decimal.Decimal
 	interval   time.Duration
 
@@ -31,8 +29,8 @@ func NewDummyStream(l, h decimal.Decimal, in time.Duration) PriceStreamSubscribe
 	}
 }
 
-func (ds *dummyStream) SubscribePriceStream(ctx context.Context, tick exchange.Ticker) (chan exchange.TickerPrice, chan error) {
-	priceCh := make(chan exchange.TickerPrice, DummyStreamDefaultBuffer)
+func (ds *dummyStream) SubscribePriceStream(ctx context.Context, tick Ticker) (chan TickerPrice, chan error) {
+	priceCh := make(chan TickerPrice, DummyStreamDefaultBuffer)
 	errCh := make(chan error, 1)
 
 	go func() {
@@ -62,12 +60,12 @@ func (ds *dummyStream) SubscribePriceStream(ctx context.Context, tick exchange.T
 	return priceCh, errCh
 }
 
-func (ds *dummyStream) generatePrice() exchange.TickerPrice {
+func (ds *dummyStream) generatePrice() TickerPrice {
 	randomVal := decimal.NewFromFloat(rand.Float64())
 	priceRange := ds.high.Sub(ds.low)
 	price := decimal.Sum(randomVal.Mul(priceRange), ds.low)
 
-	return exchange.TickerPrice{
+	return TickerPrice{
 		Ticker: ds.tickerName,
 		Time:   time.Now(),
 		Price:  price.String(),

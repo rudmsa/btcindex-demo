@@ -9,7 +9,6 @@ import (
 
 	"github.com/rudmsa/btcindex-demo/internal/aggregator"
 	"github.com/rudmsa/btcindex-demo/internal/core"
-	"github.com/rudmsa/btcindex-demo/internal/exchange"
 	"github.com/rudmsa/btcindex-demo/internal/pricestreamer"
 )
 
@@ -23,7 +22,7 @@ func main() {
 		pricestreamer.NewDummyStream(decimal.NewFromFloat(45500), decimal.NewFromFloat(45600), 600*time.Millisecond),
 	}
 
-	btcAggregator := aggregator.NewAggregator(exchange.BTCUSDTicker)
+	btcAggregator := aggregator.NewAggregator(pricestreamer.BTCUSDTicker)
 	for i := range testStreams {
 		btcAggregator.RegisterPriceStreamer(exchangeNames[i], testStreams[i])
 	}
