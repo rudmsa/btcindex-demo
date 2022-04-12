@@ -15,8 +15,9 @@ const (
 	OutputDefaultBuffer = 100
 
 	StateStopped  = 0
-	StateRunning  = 1
-	StateStopping = 2
+	StateStarting = 1
+	StateRunning  = 2
+	StateStopping = 3
 )
 
 type priceProvider struct {
@@ -58,7 +59,7 @@ func (aggr *TickerAggregator) GetAggregatedOutput() <-chan model.Quote {
 	return aggr.output
 }
 
-func (aggr *TickerAggregator) RegisterPriceStreamer(source string, priceStreamer pricestreamer.PriceStreamSubscriber) error {
+func (aggr *TickerAggregator) RegisterPriceStreamer(source string, priceStreamer pricestreamer.PriceStreamSubscriber) {
 	prov := priceProvider{
 		source:   source,
 		streamer: priceStreamer,
@@ -68,107 +69,108 @@ func (aggr *TickerAggregator) RegisterPriceStreamer(source string, priceStreamer
 	aggr.muProvs.Unlock()
 
 	if atomic.LoadInt32(&aggr.state) == StateRunning {
-		return aggr.startProvider(aggr.ctx, &prov)
+		go aggr.runProvider(aggr.ctx, &prov)
 	}
-	return nil
 }
 
-func (aggr *TickerAggregator) Stop() {
+func (aggr *TickerAggregator) Stop() error {
 	if !atomic.CompareAndSwapInt32(&aggr.state, StateRunning, StateStopping) {
-		return
+		return errors.New("TickerAggregator is not running")
 	}
 	aggr.cancelFn()
 	aggr.wg.Wait()
 	aggr.state = StateStopped
+	return nil
 }
 
 func (aggr *TickerAggregator) Run(ctx context.Context) error {
-	if !atomic.CompareAndSwapInt32(&aggr.state, StateStopped, StateRunning) {
+	if !atomic.CompareAndSwapInt32(&aggr.state, StateStopped, StateStarting) {
 		return errors.New("TickerAggregator is already started")
 	}
 	aggr.ctx, aggr.cancelFn = context.WithCancel(ctx)
 
-	if err := aggr.startProviders(); err != nil {
-		return fmt.Errorf("failed to start price providers: %w", err)
-	}
+	aggr.startProviders()
 	aggr.mainLoop()
+
 	return nil
 }
 
-func (aggr *TickerAggregator) startProviders() error {
+func (aggr *TickerAggregator) startProviders() {
 	aggr.muProvs.Lock()
 	defer aggr.muProvs.Unlock()
 
 	for _, prov := range aggr.providers {
-		if err := aggr.startProvider(aggr.ctx, prov); err != nil {
-			return fmt.Errorf("failed to start provider [%s]: %w", prov.source, err)
-		}
+		go aggr.runProvider(aggr.ctx, prov)
 	}
-	return nil
 }
 
 func (aggr *TickerAggregator) mainLoop() {
+	aggr.state = StateRunning
+
 	for {
 		select {
 		case <-aggr.ctx.Done():
 			return
 
 		case msg := <-aggr.errCh:
-			// #TODO log error
-			aggr.startProvider(aggr.ctx, msg.prov)
+			// #TODO log error & analyze it
+			// provider restart should be performed only when the error is temporary / non-fatal
+			go aggr.runProvider(aggr.ctx, msg.prov)
 		}
 	}
 }
 
-func (aggr *TickerAggregator) startProvider(ctx context.Context, prov *priceProvider) error {
+func (aggr *TickerAggregator) runProvider(ctx context.Context, prov *priceProvider) {
+	aggr.wg.Add(1)
+	defer aggr.wg.Done()
+
 	prov.dataCh, prov.errCh = prov.streamer.SubscribePriceStream(ctx, aggr.ticker)
 	if prov.dataCh == nil || prov.errCh == nil {
-		return fmt.Errorf("streamer [%s] returned nil channels", prov.source)
+		select {
+		case aggr.errCh <- providerErrorMessage{prov, fmt.Errorf("streamer [%s] returned nil channels", prov.source)}:
+		default:
+			// #TODO: log error channel is full
+		}
+		return
 	}
-	aggr.wg.Add(1)
 
-	go func() {
-		defer aggr.wg.Done()
+	for {
+		select {
+		case <-ctx.Done():
+			prov.dataCh = nil
+			prov.errCh = nil
+			return
 
-		for {
+		case data, ok := <-prov.dataCh:
+			if !ok {
+				// do one more iteration - error channel should provide reason
+				prov.dataCh = nil
+				break
+			}
+			quote, err := model.TickerPriceToQuote(prov.source, data)
+			if err != nil {
+				// #TODO: report this error
+				break
+			}
+
 			select {
-			case <-ctx.Done():
+			case aggr.output <- quote:
+			default:
+				// #TODO: output channel is full - report it
+			}
+
+		case err, ok := <-prov.errCh:
+			if !ok {
 				prov.dataCh = nil
 				prov.errCh = nil
 				return
-
-			case data, ok := <-prov.dataCh:
-				if !ok {
-					// do one more iteration - error channel should provide reason
-					prov.dataCh = nil
-					break
-				}
-				quote, err := model.TickerPriceToQuote(prov.source, data)
-				if err != nil {
-					// #TODO: report this error
-					break
-				}
-
-				select {
-				case aggr.output <- quote:
-				default:
-					// #TODO: output channel is full - report it
-				}
-
-			case err, ok := <-prov.errCh:
-				if !ok {
-					prov.dataCh = nil
-					prov.errCh = nil
-					return
-				}
-				select {
-				case aggr.errCh <- providerErrorMessage{prov, err}:
-				default:
-					// #TODO: error channel is full - report it
-				}
-				return
 			}
+			select {
+			case aggr.errCh <- providerErrorMessage{prov, err}:
+			default:
+				// #TODO: error channel is full - report it
+			}
+			return
 		}
-	}()
-	return nil
+	}
 }
