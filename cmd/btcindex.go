@@ -30,13 +30,13 @@ func main() {
 		btcAggregator.RegisterPriceStreamer(exchangeNames[i], testStreams[i])
 	}
 
-	index := indexer.NewPriceIndexer(&algorithm.StreamingMean{}, 5*time.Second, btcAggregator.GetAggregatedOutput())
+	index := indexer.NewPriceIndexer(&algorithm.StreamingMean{}, 60*time.Second, btcAggregator.GetAggregatedOutput())
 
 	var appl *core.Application = core.NewApplication()
 	appl.Register(btcAggregator)
 	appl.Register(index)
 
-	ctx, cancelFn := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancelFn := context.WithTimeout(context.Background(), 600*time.Second)
 	defer cancelFn()
 
 	go func() {
